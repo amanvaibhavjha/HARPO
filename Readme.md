@@ -96,14 +96,7 @@ pip install flash-attn --no-build-isolation
 
 ### 2. Data Preparation
 
-**Option A: Download pre-processed data (Recommended)**
-```bash
-# Download from anonymous link (will be provided)
-wget https://anonymous-link/harpo_data.tar.gz
-tar -xzf harpo_data.tar.gz -C data/
-```
-
-**Option B: Process from raw datasets**
+Process from raw datasets**
 ```bash
 # ReDial (Movies - conversational)
 python scripts/convert_redial.py \
