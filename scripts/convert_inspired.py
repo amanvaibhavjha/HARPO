@@ -216,38 +216,73 @@ class LLMClient:
 # DATA LOADING
 # ============================================================================
 
+def parse_inspired_tsv(tsv_content: str) -> List[Dict]:
+    """
+    Parses the raw TSV content.
+    Confirmed Mapping: Col 0=ID, Col 2=Speaker, Col 4=Text
+    """
+    conversations = []
+    current_conv = {}
+    current_messages = []
+    last_conv_id = None
+    
+    lines = tsv_content.strip().split('\n')
+    start_idx = 1 if lines and "dialog_id" in lines[0].lower() else 0
+
+    for line in lines[start_idx:]:
+        parts = line.split('\t')
+        if len(parts) < 3: continue
+            
+        conv_id = parts[0].strip()
+        role_raw = parts[2].strip()
+        
+        # TEXT EXTRACTION (Corrected based on logs)
+        if len(parts) >= 5:
+            text = parts[4].strip()
+        elif len(parts) == 4:
+            text = parts[3].strip()
+        else:
+            text = parts[-1].strip()
+
+        # SPEAKER NORMALIZATION
+        if role_raw.upper() == "SEEKER": speaker = "user"
+        elif role_raw.upper() == "RECOMMENDER": speaker = "recommender"
+        else: speaker = role_raw.lower()
+
+        if conv_id != last_conv_id:
+            if last_conv_id is not None:
+                current_conv["messages"] = current_messages
+                conversations.append(current_conv)
+            current_conv = {"conversationId": conv_id, "messages": []}
+            current_messages = []
+            last_conv_id = conv_id
+
+        current_messages.append({"role": speaker, "text": text})
+
+    if current_conv and current_messages:
+        current_conv["messages"] = current_messages
+        conversations.append(current_conv)
+
+    return conversations
+
 def load_inspired_from_github() -> Tuple[List[Dict], List[Dict]]:
-    """Load INSPIRED dataset from GitHub repository."""
+    base_url = "https://raw.githubusercontent.com/sweetpeach/Inspired/master/data/dialog_data"
+    files = {"train": f"{base_url}/train.tsv", "dev": f"{base_url}/dev.tsv", "test": f"{base_url}/test.tsv"}
     
-    base_url = "https://raw.githubusercontent.com/sweetpeach/Inspired/main/data"
+    print("Downloading INSPIRED dataset...")
+    data_splits = {}
     
-    train_url = f"{base_url}/train.json"
-    dev_url = f"{base_url}/dev.json"
-    test_url = f"{base_url}/test.json"
-    
-    print("Downloading INSPIRED dataset from GitHub...")
-    
-    def download_json(url: str) -> List[Dict]:
+    for split, url in files.items():
         try:
             with urllib.request.urlopen(url, timeout=30) as response:
-                return json.loads(response.read().decode())
+                content = response.read().decode('utf-8')
+                data_splits[split] = parse_inspired_tsv(content)
+                print(f"  ✓ Loaded {split}: {len(data_splits[split])} conversations")
         except Exception as e:
-            print(f"  Warning: Could not download {url}: {e}")
-            return []
-    
-    train_data = download_json(train_url)
-    dev_data = download_json(dev_url)
-    test_data = download_json(test_url)
-    
-    # Combine train and dev for training
-    all_train = train_data + dev_data
-    
-    print(f"  Train: {len(train_data)} conversations")
-    print(f"  Dev: {len(dev_data)} conversations")
-    print(f"  Test: {len(test_data)} conversations")
-    print(f"  Total train (train+dev): {len(all_train)} conversations")
-    
-    return all_train, test_data
+            print(f"  ✗ Failed {split}: {e}")
+            data_splits[split] = []
+
+    return data_splits.get("train", []) + data_splits.get("dev", []), data_splits.get("test", [])
 
 
 def load_inspired_local(data_dir: str) -> Tuple[List[Dict], List[Dict]]:
