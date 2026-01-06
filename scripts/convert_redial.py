@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HARPO-MT v2: ReDial Dataset Converter
+HARPO: ReDial Dataset Converter
 
 Converts ReDial conversational recommendation dataset to HARPO-MT format.
 ReDial has ACTUAL movie recommendations - essential for proper ranking evaluation.
@@ -244,49 +244,44 @@ class LLMClient:
 # ============================================================================
 
 def download_redial_from_github(output_dir: str = "./redial_raw") -> Tuple[str, str]:
-    """Download ReDial dataset from GitHub (zip archive of data branch)"""
+    """Download ReDial dataset zip directly from the data branch"""
     os.makedirs(output_dir, exist_ok=True)
     
     # Target paths
     train_path = os.path.join(output_dir, "train_data.jsonl")
     test_path = os.path.join(output_dir, "test_data.jsonl")
     
-    # Check if files exist to avoid redundant downloads
     if os.path.exists(train_path) and os.path.exists(test_path):
-        print(f"  {train_path} and {test_path} already exist, skipping download")
+        print(f"  Files already exist in {output_dir}, skipping download")
         return train_path, test_path
 
-    # URL for the 'data' branch zip archive
-    zip_url = "https://github.com/ReDialData/website/archive/refs/heads/data.zip"
-    print(f"  Downloading ReDial data branch from {zip_url}...")
+    # CORRECT RAW URL for the specific zip file in the repo
+    # using 'raw=true' ensures we get binary data, not the GitHub HTML wrapper
+    zip_url = "https://github.com/ReDialData/website/blob/data/redial_dataset.zip?raw=true"
+    print(f"  Downloading ReDial dataset from {zip_url}...")
     
     try:
-        # Download the zip file into memory
+        # 1. Download the zip file into memory
         with urllib.request.urlopen(zip_url) as response:
             zip_content = response.read()
             
+        # 2. Extract specific files from the zip
         with zipfile.ZipFile(io.BytesIO(zip_content)) as z:
-            # GitHub zips put files in a root folder (e.g., website-data/), so we search for them
-            train_filename = None
-            test_filename = None
+            print("    Zip content:", z.namelist())
             
-            for name in z.namelist():
-                if name.endswith("train_data.jsonl"):
-                    train_filename = name
-                elif name.endswith("test_data.jsonl"):
-                    test_filename = name
-            
-            if not train_filename or not test_filename:
-                raise ValueError("Could not find train/test .jsonl files in the downloaded zip archive.")
+            # Helper to extract a file by approximate name (ignores folders)
+            def extract_file(target_name, dest_path):
+                # Find the file in the zip (ignoring directory structure)
+                source_name = next((n for n in z.namelist() if n.endswith(target_name)), None)
+                if not source_name:
+                    raise ValueError(f"Could not find {target_name} inside the downloaded zip.")
                 
-            # Extract specific files to the output directory
-            print(f"    Extracting {train_filename} -> {train_path}...")
-            with z.open(train_filename) as source, open(train_path, "wb") as target:
-                target.write(source.read())
-                
-            print(f"    Extracting {test_filename} -> {test_path}...")
-            with z.open(test_filename) as source, open(test_path, "wb") as target:
-                target.write(source.read())
+                print(f"    Extracting {source_name} -> {dest_path}...")
+                with z.open(source_name) as source, open(dest_path, "wb") as target:
+                    target.write(source.read())
+
+            extract_file("train_data.jsonl", train_path)
+            extract_file("test_data.jsonl", test_path)
 
         print(f"    ✓ Successfully saved to {output_dir}")
         
