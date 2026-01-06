@@ -306,24 +306,6 @@ We conducted human evaluation with 3 expert annotators on 200 test samples per d
 
 *Scores on 1-5 scale; κ = Fleiss' kappa for inter-annotator agreement*
 
-## ⚠️ Limitations
-
-1. **Computational Cost**: Full training requires significant GPU resources (2x A100 recommended)
-2. **Data Contamination Risk**: ReDial (2018) and INSPIRED (2020) may have contamination with LLM training data
-3. **Evaluation Circularity**: CHARM-based metrics should be interpreted with human evaluation as validation
-4. **Missing Baselines**: Comparison focuses on methods through 2023; evaluation against 2024 LLM-based CRS methods would strengthen positioning
-
-## 📚 Citation
-
-```bibtex
-@inproceedings{anonymous2025harpo,
-  title={HARPO: Optimizing Conversational Recommendation for User-Aligned Quality via Hierarchical Preference Learning},
-  author={Anonymous},
-  booktitle={Proceedings of ACL 2025},
-  year={2025}
-}
-```
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
