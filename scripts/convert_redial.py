@@ -18,6 +18,8 @@ Usage:
 """
 
 import json
+import zipfile
+import io
 import os
 import re
 import random
@@ -242,34 +244,57 @@ class LLMClient:
 # ============================================================================
 
 def download_redial_from_github(output_dir: str = "./redial_raw") -> Tuple[str, str]:
-    """Download ReDial dataset from GitHub"""
+    """Download ReDial dataset from GitHub (zip archive of data branch)"""
     os.makedirs(output_dir, exist_ok=True)
     
-    base_url = "https://raw.githubusercontent.com/ReDialData/website/data"
-    files = {
-        "train": f"{base_url}/train_data.jsonl",
-        "test": f"{base_url}/test_data.jsonl"
-    }
+    # Target paths
+    train_path = os.path.join(output_dir, "train_data.jsonl")
+    test_path = os.path.join(output_dir, "test_data.jsonl")
     
-    paths = {}
-    for split, url in files.items():
-        output_path = os.path.join(output_dir, f"{split}_data.jsonl")
-        
-        if os.path.exists(output_path):
-            print(f"  {split}_data.jsonl already exists, skipping download")
-            paths[split] = output_path
-            continue
-        
-        print(f"  Downloading {split}_data.jsonl from GitHub...")
-        try:
-            urllib.request.urlretrieve(url, output_path)
-            paths[split] = output_path
-            print(f"    ✓ Saved to {output_path}")
-        except Exception as e:
-            print(f"    ✗ Failed to download: {e}")
-            raise
+    # Check if files exist to avoid redundant downloads
+    if os.path.exists(train_path) and os.path.exists(test_path):
+        print(f"  {train_path} and {test_path} already exist, skipping download")
+        return train_path, test_path
+
+    # URL for the 'data' branch zip archive
+    zip_url = "https://github.com/ReDialData/website/archive/refs/heads/data.zip"
+    print(f"  Downloading ReDial data branch from {zip_url}...")
     
-    return paths["train"], paths["test"]
+    try:
+        # Download the zip file into memory
+        with urllib.request.urlopen(zip_url) as response:
+            zip_content = response.read()
+            
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as z:
+            # GitHub zips put files in a root folder (e.g., website-data/), so we search for them
+            train_filename = None
+            test_filename = None
+            
+            for name in z.namelist():
+                if name.endswith("train_data.jsonl"):
+                    train_filename = name
+                elif name.endswith("test_data.jsonl"):
+                    test_filename = name
+            
+            if not train_filename or not test_filename:
+                raise ValueError("Could not find train/test .jsonl files in the downloaded zip archive.")
+                
+            # Extract specific files to the output directory
+            print(f"    Extracting {train_filename} -> {train_path}...")
+            with z.open(train_filename) as source, open(train_path, "wb") as target:
+                target.write(source.read())
+                
+            print(f"    Extracting {test_filename} -> {test_path}...")
+            with z.open(test_filename) as source, open(test_path, "wb") as target:
+                target.write(source.read())
+
+        print(f"    ✓ Successfully saved to {output_dir}")
+        
+    except Exception as e:
+        print(f"    ✗ Failed to download/extract: {e}")
+        raise
+    
+    return train_path, test_path
 
 
 def load_redial_from_github(raw_dir: str = "./redial_raw") -> Tuple[List[Dict], List[Dict]]:
